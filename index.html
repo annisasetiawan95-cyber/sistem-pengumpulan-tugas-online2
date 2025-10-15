@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelas Digital: Portal Tugas Modern</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font baru: Cormorant Garamond & Poppins -->
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Latar belakang animasi gradasi lilac */
+        .animated-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: linear-gradient(135deg, #ede9fe, #ddd6fe, #c4b5fd, #a78bfa);
+            background-size: 400% 400%;
+            animation: gradient-animation 20s ease infinite;
+        }
+
+        @keyframes gradient-animation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Mengaplikasikan font baru */
+        body, h1, h2, h3, button, select {
+            font-family: 'Cormorant Garamond', serif;
+        }
+        /* Menggunakan font Poppins untuk teks deskripsi agar mudah dibaca */
+        p, td, th, label, textarea, input, span, a {
+            font-family: 'Poppins', sans-serif;
+        }
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        /* Animasi untuk Modal dan Notifikasi */
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-fade-in-up { animation: fade-in-up 0.3s ease-out forwards; }
+
+        @keyframes fade-in-down {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fade-out-up {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-20px); visibility: hidden; }
+        }
+        .animate-fade-in-down { animation: fade-in-down 0.5s ease-out forwards; }
+        .animate-fade-out-up { animation: fade-out-up 0.5s ease-out forwards; }
+    </style>
+</head>
+<body class="text-gray-800">
+    
+    <div class="animated-bg"></div>
+
+    <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <!-- Konten aplikasi akan dirender di sini oleh JavaScript -->
+    </div>
+
+    <!-- Container untuk Modal -->
+    <div id="modal-container" class="hidden fixed inset-0 z-50"></div>
+    
+    <!-- Container untuk Notifikasi Toast -->
+    <div id="notification-container" class="fixed top-5 right-5 z-[100] w-full max-w-xs sm:max-w-sm"></div>
+
+    <!-- Modal Manajemen Pengguna (khusus admin) -->
+    <div id="user-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4 modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg animate-fade-in-up">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 id="user-modal-title" class="text-2xl font-bold">Tambah Pengguna</h3>
+                <button data-action="close-user-modal" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            </div>
+            <form id="user-form">
+                <div class="p-6 space-y-4">
+                     <input type="hidden" id="user-id">
+                    <div>
+                        <label for="user-nama" class="block mb-1 font-medium">Nama Lengkap</label>
+                        <input type="text" id="user-nama" class="w-full p-2 border rounded-md" required>
+                    </div>
+                    <div>
+                        <label for="user-username" class="block mb-1 font-medium">Username</label>
+                        <input type="text" id="user-username" class="w-full p-2 border rounded-md" required>
+                    </div>
+                    <div>
+                        <label for="user-password" class="block mb-1 font-medium">Password</label>
+                        <input type="password" id="user-password" class="w-full p-2 border rounded-md">
+                        <p id="password-hint" class="text-xs text-gray-500 mt-1">Kosongkan jika tidak ingin mengubah password.</p>
+                    </div>
+                     <div>
+                        <label for="user-role" class="block mb-1 font-medium">Peran</label>
+                        <select id="user-role" class="w-full p-2 border rounded-md bg-white">
+                            <option value="siswa">Siswa</option>
+                            <option value="guru">Guru</option>
+                        </select>
+                    </div>
+                    <p id="user-error" class="text-red-500 text-sm hidden"></p>
+                </div>
+                <div class="flex justify-end p-4 bg-gray-50 border-t rounded-b-lg">
+                   <button type="button" data-action="close-user-modal" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg mr-2 hover:bg-gray-400">Batal</button>
+                   <button type="submit" class="bg-violet-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-violet-700">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // =================================================================================
+            // STATE & DATA MANAGEMENT
+            // =================================================================================
+            const deadlineTugas3 = new Date();
+            deadlineTugas3.setDate(deadlineTugas3.getDate() + 3);
+
+            let state = {
+                currentUserRole: null, 
+                currentUserName: null, 
+                currentUserId: null,
+                users: {
+                    superadmin: [
+                        { id: 101, username: 'superadmin', password: '123', nama: 'Admin Utama' }
+                    ],
+                    guru: [
+                        { id: 201, username: 'guru', password: '123', nama: 'Ibu Guru Elegan', status: 'approved' }
+                    ],
+                    siswa: [
+                        { id: 301, username: 'siswa', password: '123', nama: 'Budi Santoso', status: 'approved' },
+                        { id: 302, username: 'siti', password: 'siti123', nama: 'Siti Aminah', status: 'approved' },
+                        { id: 303, username: 'elegan', password: 'siswa123', nama: 'Siswa Elegan', status: 'approved'}
+                    ]
+                },
+                tugas: [
+                    {
+                        id: 1,
+                        judul: "Tugas 1: Analisis Puisi Klasik",
+                        deskripsi: "Buatlah analisis mendalam terhadap puisi 'Aku' karya Chairil Anwar. Fokus pada majas dan makna yang terkandung.",
+                        deadline: new Date('2025-10-10T23:59:00')
+                    },
+                    {
+                        id: 2,
+                        judul: "Tugas 2: Riset Sejarah Seni Rupa",
+                        deskripsi: "Siapkan presentasi (PPT) mengenai aliran seni Impresionisme. Sertakan tokoh-tokoh utamanya dan contoh karya.",
+                        deadline: new Date('2025-10-15T23:59:00')
+                    },
+                    {
+                        id: 3,
+                        judul: "Tugas 3: Esai Filsafat",
+                        deskripsi: "Tulis esai mengenai konsep 'Cogito, ergo sum' oleh René Descartes. Jelaskan implikasinya dalam filsafat modern.",
+                        deadline: deadlineTugas3
+                    }
+                ],
+                pengumpulan: [
+                     {
+                        id: 1,
+                        tugasId: 1,
+                        siswaId: 301,
+                        namaSiswa: "Budi Santoso",
+                        file: { name: 'analisis_puisi_budi.pdf', size: 1200 },
+                        tanggalKumpul: new Date('2025-10-09T10:00:00'),
+                        nilai: 90,
+                        komentarGuru: "Kerja bagus, Budi! Analisisnya sangat tajam dan referensinya lengkap."
+                    },
+                    {
+                        id: 2,
+                        tugasId: 2,
+                        siswaId: 302,
+                        namaSiswa: "Siti Aminah",
+                        file: { name: 'presentasi_impresionisme_siti.pptx', size: 2500 },
+                        tanggalKumpul: new Date('2025-10-14T15:30:00'),
+                        nilai: 85,
+                        komentarGuru: "Presentasi menarik dan informatif. Lain kali, perbesar ukuran font agar lebih mudah dibaca."
+                    },
+                    {
+                        id: 3,
+                        tugasId: 1,
+                        siswaId: 303,
+                        namaSiswa: "Siswa Elegan",
+                        file: { name: 'tugas_puisi_klasik.docx', size: 950 },
+                        tanggalKumpul: new Date('2025-10-11T08:00:00'),
+                        nilai: null,
+                        komentarGuru: null
+                    }
+                ]
+            };
+
+            const appContainer = document.getElementById('app');
+            const modalContainer = document.getElementById('modal-container');
+            const userModal = document.getElementById('user-modal');
+
+            // =================================================================================
+            // HELPER FUNCTIONS
+            // =================================================================================
+            const formatDate = (date) => {
+                if (!date || isNaN(new Date(date))) return 'Invalid Date';
+                return new Intl.DateTimeFormat('id-ID', {
+                    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                }).format(new Date(date));
+            };
+            
+            const toDateTimeLocal = (date) => {
+                const dt = new Date(date);
+                dt.setMinutes(dt.getMinutes() - dt.getTimezoneOffset());
+                return dt.toISOString().slice(0, 16);
+            };
+
+            const getStatusTugas = (tugas, pengumpulan) => {
+                const now = new Date();
+                if (pengumpulan) {
+                    return { text: 'Terkumpul', color: 'violet', icon: 'fa-check-circle' };
+                }
+                if (now > new Date(tugas.deadline)) {
+                    return { text: 'Terlambat', color: 'red', icon: 'fa-times-circle' };
+                }
+                return { text: 'Belum Dikumpulkan', color: 'gray', icon: 'fa-clock' };
+            };
+            
+            const getStatusPengumpulan = (pengumpulan, tugas) => {
+                 if (new Date(pengumpulan.tanggalKumpul) <= new Date(tugas.deadline)) {
+                    return { text: 'Tepat Waktu', color: 'green' };
+                }
+                return { text: 'Terlambat', color: 'red' };
+            }
+
+            const showNotification = (message, type = 'success') => {
+                const container = document.getElementById('notification-container');
+                const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+                const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+
+                const toast = document.createElement('div');
+                toast.className = `p-4 rounded-lg shadow-lg text-white ${bgColor} animate-fade-in-down mb-2 flex items-center`;
+                toast.innerHTML = `<i class="fas ${icon} mr-3"></i> <span class="font-sans">${message}</span>`;
+
+                container.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.classList.remove('animate-fade-in-down');
+                    toast.classList.add('animate-fade-out-up');
+                    toast.addEventListener('animationend', () => toast.remove());
+                }, 3000);
+            };
+            
+            const saveState = () => {
+                localStorage.setItem('kelasDigitalState', JSON.stringify(state));
+            };
+
+            const loadState = () => {
+                const savedState = localStorage.getItem('kelasDigitalState');
+                if (savedState) {
+                    const parsedState = JSON.parse(savedState);
+                    // Convert date strings back to Date objects
+                    if (parsedState.tugas) {
+                        parsedState.tugas.forEach(t => t.deadline = new Date(t.deadline));
+                    }
+                    if (parsedState.pengumpulan) {
+                        parsedState.pengumpulan.forEach(p => p.tanggalKumpul = new Date(p.tanggalKumpul));
+                    }
+                    Object.assign(state, parsedState);
+                }
+            };
+
+            // =================================================================================
+            // RENDER FUNCTIONS (UI COMPONENTS)
+            // =================================================================================
+
+            const renderLogin = () => {
+                appContainer.innerHTML = `
+                    <div class="min-h-screen flex items-center justify-center">
+                        <div class="bg-white/80 backdrop-blur-sm p-8 rounded-xl shadow-lg w-full max-w-md text-center animate-fade-in-up">
+                            <i class="fas fa-book-reader text-5xl text-violet-600 mb-4"></i>
+                            <h1 class="text-4xl font-bold mb-2">Kelas Digital</h1>
+                            <p class="text-gray-600 mb-6 text-base">Portal Tugas Modern. Silakan masuk.</p>
+                            <div class="space-y-4 text-left">
+                                <div>
+                                    <label for="username" class="block mb-1 text-lg font-medium">Username</label>
+                                    <input type="text" id="username" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-base" placeholder="Masukkan username">
+                                </div>
+                                <div>
+                                    <label for="password" class="block mb-1 text-lg font-medium">Password</label>
+                                    <input type="password" id="password" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-base" placeholder="Masukkan password">
+                                </div>
+                                <div>
+                                    <label for="roleSelector" class="block mb-1 text-lg font-medium">Masuk sebagai</label>
+                                    <select id="roleSelector" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-lg bg-white">
+                                        <option value="siswa">Siswa</option>
+                                        <option value="guru">Guru</option>
+                                        <option value="superadmin">Super Admin</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <p id="loginError" class="text-red-500 text-sm mt-4 hidden"></p>
+                            <button id="loginBtn" class="w-full mt-6 bg-violet-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-violet-700 transition duration-300 text-xl">
+                                Masuk
+                            </button>
+                        </div>
+                    </div>
+                `;
+            };
+            
+            const renderSuperAdminDashboard = () => {
+                const managedUsers = [...(state.users.guru || []), ...(state.users.siswa || [])]
+                    .map(user => `
+                        <tr class="border-b">
+                            <td class="p-3">${user.nama}</td>
+                            <td class="p-3">${user.username}</td>
+                            <td class="p-3 capitalize">${(state.users.guru || []).some(u => u.id === user.id) ? 'Guru' : 'Siswa'}</td>
+                            <td class="p-3 text-right">
+                                <button data-action="edit-user" data-id="${user.id}" class="bg-yellow-500 text-white px-2 py-1 rounded-lg text-xs hover:bg-yellow-600 mr-2"><i class="fas fa-edit"></i></button>
+                                <button data-action="delete-user" data-id="${user.id}" class="bg-red-500 text-white px-2 py-1 rounded-lg text-xs hover:bg-red-600"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    `).join('');
+
+                appContainer.innerHTML = `
+                    <div class="bg-white/80 backdrop-blur-sm p-6 rounded-xl shadow-lg animate-fade-in-up">
+                        <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                            <div>
+                                <h1 class="text-4xl font-bold">Dashboard Super Admin</h1>
+                                <p class="text-gray-500">Selamat datang, ${state.currentUserName}!</p>
+                            </div>
+                            <button data-action="logout" class="bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 transition text-lg">
+                                <i class="fas fa-sign-out-alt mr-2"></i>Keluar
+                            </button>
+                        </div>
+
+                        <!-- Manajemen Pengguna -->
+                        <div class="mb-8">
+                            <div class="flex justify-between items-center mb-4">
+                               <h2 class="text-3xl font-semibold border-b pb-2">Manajemen Pengguna</h2>
+                               <button data-action="add-user" class="bg-violet-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-violet-700 transition text-lg">
+                                   <i class="fas fa-plus mr-2"></i>Tambah Pengguna
+                               </button>
+                            </div>
+                            
+                              <h3 class="text-xl font-semibold mt-6 mb-3 text-gray-700">Daftar Pengguna Aktif</h3>
+                              <div class="overflow-x-auto rounded-lg border">
+                                <table class="min-w-full bg-white">
+                                    <thead class="bg-gray-200">
+                                        <tr>
+                                            <th class="p-3 text-left font-semibold">Nama</th>
+                                            <th class="p-3 text-left font-semibold">Username</th>
+                                            <th class="p-3 text-left font-semibold">Peran</th>
+                                            <th class="p-3 text-right font-semibold">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${managedUsers.length > 0 ? managedUsers : '<tr><td colspan="4" class="text-center p-4 text-gray-500">Belum ada pengguna aktif.</td></tr>'}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            };
+
+            const renderGuruDashboard = () => {
+                const submissionsHtml = state.pengumpulan.map(p => {
+                    const tugas = state.tugas.find(t => t.id === p.tugasId);
+                    if (!tugas) return '';
+                    const status = getStatusPengumpulan(p, tugas);
+                    return `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="p-4">${p.namaSiswa}</td>
+                            <td class="p-4">${tugas.judul}</td>
+                            <td class="p-4">
+                                <a data-action="lihat-tugas" data-id="${p.id}" class="text-violet-600 hover:underline cursor-pointer font-medium">
+                                    <i class="fas fa-file-alt mr-1"></i>${p.file.name}
+                                </a>
+                            </td>
+                            <td class="p-4">${formatDate(p.tanggalKumpul)}</td>
+                            <td class="p-4 font-medium text-${status.color}-600">${status.text}</td>
+                            <td class="p-4">
+                                <input type="number" data-id="${p.id}" value="${p.nilai || ''}" placeholder="0-100" class="w-20 p-1 border rounded nilai-input">
+                            </td>
+                            <td class="p-4">
+                                <textarea data-id="${p.id}" placeholder="Beri komentar..." class="w-full p-1 border rounded komentar-input">${p.komentarGuru || ''}</textarea>
+                            </td>
+                            <td class="p-4">
+                                <button data-action="simpan-penilaian" data-id="${p.id}" class="bg-green-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-600">Simpan</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                appContainer.innerHTML = `
+                    <div class="bg-white/80 backdrop-blur-sm p-6 rounded-xl shadow-lg animate-fade-in-up">
+                        <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                            <div>
+                                <h1 class="text-4xl font-bold">Dashboard Guru</h1>
+                                <p class="text-gray-500">Selamat datang, ${state.currentUserName}! Anda dapat memeriksa tugas siswa di sini.</p>
+                            </div>
+                            <button data-action="logout" class="bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 transition text-lg">
+                                <i class="fas fa-sign-out-alt mr-2"></i>Keluar
+                            </button>
+                        </div>
+                        
+                        <div class="mb-6">
+                             <button data-action="tambah-tugas" class="bg-violet-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-violet-700 transition text-lg">
+                                 <i class="fas fa-plus mr-2"></i>Tambah Tugas Baru
+                             </button>
+                        </div>
+
+                        <h2 class="text-3xl font-semibold mb-4">Tugas Terkumpul</h2>
+                        <div class="overflow-x-auto rounded-lg border">
+                            <table class="min-w-full bg-white">
+                                <thead class="bg-gray-200">
+                                    <tr>
+                                        <th class="p-4 text-left font-semibold text-base">Nama Siswa</th>
+                                        <th class="p-4 text-left font-semibold text-base">Tugas</th>
+                                        <th class="p-4 text-left font-semibold text-base">File</th>
+                                        <th class="p-4 text-left font-semibold text-base">Tanggal Kumpul</th>
+                                        <th class="p-4 text-left font-semibold text-base">Status</th>
+                                        <th class="p-4 text-left font-semibold text-base">Nilai</th>
+                                        <th class="p-4 text-left font-semibold text-base">Komentar</th>
+                                        <th class="p-4 text-left font-semibold text-base">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${submissionsHtml || '<tr><td colspan="8" class="text-center p-4">Belum ada tugas yang dikumpulkan.</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            };
+
+            const renderSiswaDashboard = () => {
+                const tugasHtml = state.tugas.map(tugas => {
+                    const pengumpulan = state.pengumpulan.find(p => p.tugasId === tugas.id && p.siswaId === state.currentUserId);
+                    const status = getStatusTugas(tugas, pengumpulan);
+
+                    return `
+                        <div class="bg-white/80 backdrop-blur-sm p-6 rounded-lg shadow transition hover:shadow-xl hover:-translate-y-1">
+                            <div class="flex flex-wrap justify-between items-start gap-2">
+                                <div>
+                                    <h3 class="text-2xl font-bold text-violet-700">${tugas.judul}</h3>
+                                    <p class="text-sm text-red-600 font-semibold mb-2">
+                                        <i class="fas fa-calendar-times mr-1"></i> Deadline: ${formatDate(new Date(tugas.deadline))}
+                                    </p>
+                                    <p class="text-gray-600 mb-4">${tugas.deskripsi}</p>
+                                </div>
+                                <span class="text-sm font-medium text-${status.color}-600 bg-${status.color}-100 px-3 py-1 rounded-full whitespace-nowrap">
+                                    <i class="fas ${status.icon} mr-1"></i>
+                                    ${status.text}
+                                </span>
+                            </div>
+                            
+                            ${pengumpulan ? `
+                                <div class="mt-4 border-t pt-4">
+                                    <p class="font-semibold text-base">Tugas Anda:</p>
+                                    <div class="flex items-center text-gray-700 bg-gray-100 p-2 rounded-md mt-2">
+                                        <i class="fas fa-file-alt text-lg mr-3"></i>
+                                        <span>${pengumpulan.file.name}</span>
+                                    </div>
+                                    ${pengumpulan.nilai !== null ? `
+                                        <div class="mt-3">
+                                            <p class="font-semibold text-base">Nilai: <span class="text-2xl font-bold text-green-600">${pengumpulan.nilai}</span></p>
+                                        </div>
+                                        <div class="mt-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md">
+                                            <p class="font-bold text-base">Komentar dari Guru:</p>
+                                            <p>${pengumpulan.komentarGuru}</p>
+                                        </div>
+                                    ` : `
+                                        <p class="mt-3 text-sm text-gray-500">Tugas Anda sedang diperiksa oleh guru.</p>
+                                    `}
+                                </div>
+                            ` : `
+                                <button data-action="kumpul-tugas" data-id="${tugas.id}" class="mt-4 w-full bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition disabled:bg-gray-400 disabled:cursor-not-allowed text-lg"
+                                    ${new Date() > new Date(tugas.deadline) ? 'disabled' : ''}>
+                                    <i class="fas fa-upload mr-2"></i>${new Date() > new Date(tugas.deadline) ? 'Waktu Habis' : 'Kumpulkan Tugas'}
+                                </button>
+                            `}
+                        </div>
+                    `;
+                }).join('');
+
+                appContainer.innerHTML = `
+                    <div class="bg-white/80 backdrop-blur-sm p-6 rounded-xl shadow-lg animate-fade-in-up">
+                        <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                            <div>
+                                <h1 class="text-4xl font-bold">Dashboard Siswa</h1>
+                                <p class="text-gray-500">Selamat datang, ${state.currentUserName}!</p>
+                            </div>
+                            <button data-action="logout" class="bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 transition text-lg">
+                                <i class="fas fa-sign-out-alt mr-2"></i>Keluar
+                            </button>
+                        </div>
+                        <h2 class="text-3xl font-semibold mb-4">Daftar Tugas</h2>
+                        <div class="space-y-4">
+                            ${tugasHtml || '<p>Belum ada tugas yang diberikan.</p>'}
+                        </div>
+                    </div>
+                `;
+            };
+            
+            const renderModal = ({ title, body, footer }) => {
+                modalContainer.innerHTML = `
+                    <div class="modal-backdrop fixed inset-0 flex items-center justify-center p-4">
+                        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg animate-fade-in-up">
+                            <div class="flex justify-between items-center p-4 border-b">
+                                <h3 class="text-2xl font-bold">${title}</h3>
+                                <button data-action="close-modal" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                            </div>
+                            <div class="p-6">${body}</div>
+                            <div class="flex justify-end p-4 bg-gray-50 border-t rounded-b-lg">
+                                ${footer}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                modalContainer.classList.remove('hidden');
+            };
+            
+            const closeModal = () => {
+                modalContainer.classList.add('hidden');
+                modalContainer.innerHTML = '';
+            }
+
+            // =================================================================================
+            // EVENT HANDLERS & ACTIONS
+            // =================================================================================
+
+            const handleLogin = () => {
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                const role = document.getElementById('roleSelector').value;
+                const errorEl = document.getElementById('loginError');
+
+                const userList = state.users[role];
+                if (!userList) {
+                    errorEl.textContent = 'Peran tidak valid.';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+                const user = userList.find(u => u.username === username && u.password === password);
+
+                if (user) {
+                    state.currentUserRole = role;
+                    state.currentUserName = user.nama;
+                    state.currentUserId = user.id; // Simpan ID pengguna
+                    errorEl.classList.add('hidden');
+                    saveState();
+                    main();
+                } else {
+                    errorEl.textContent = 'Username atau password salah.';
+                    errorEl.classList.remove('hidden');
+                }
+            };
+
+            const handleLogout = () => {
+                state.currentUserRole = null;
+                state.currentUserName = null;
+                state.currentUserId = null;
+                saveState();
+                main();
+            };
+            
+            const handleKumpulTugas = (tugasId) => {
+                const tugas = state.tugas.find(t => t.id === tugasId);
+                renderModal({
+                    title: `Kumpulkan: ${tugas.judul}`,
+                    body: `
+                        <p class="mb-4">Silakan unggah file tugas Anda.</p>
+                        <input type="file" id="file-upload" class="w-full p-2 border rounded-md">
+                        <p id="file-error" class="text-red-500 text-sm mt-2 hidden"></p>
+                    `,
+                    footer: `
+                        <button data-action="close-modal" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg mr-2 hover:bg-gray-400">Batal</button>
+                        <button data-action="submit-tugas" data-id="${tugasId}" class="bg-violet-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-violet-700">Kirim</button>
+                    `
+                });
+            };
+
+            const handleSubmitTugas = (tugasId) => {
+                const fileInput = document.getElementById('file-upload');
+                const file = fileInput.files[0];
+                const errorEl = document.getElementById('file-error');
+
+                if (!file) {
+                    errorEl.textContent = "Silakan pilih file terlebih dahulu.";
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+
+                const newPengumpulan = {
+                    id: Date.now(),
+                    tugasId: tugasId,
+                    siswaId: state.currentUserId,
+                    namaSiswa: state.currentUserName,
+                    file: { name: file.name, size: file.size },
+                    tanggalKumpul: new Date(),
+                    nilai: null,
+                    komentarGuru: null
+                };
+
+                state.pengumpulan.push(newPengumpulan);
+                saveState();
+                closeModal();
+                showNotification('Tugas berhasil dikumpulkan!');
+                renderSiswaDashboard();
+            };
+            
+            const handleSimpanPenilaian = (pengumpulanId) => {
+                const pengumpulan = state.pengumpulan.find(p => p.id === pengumpulanId);
+                const nilaiInput = document.querySelector(`.nilai-input[data-id="${pengumpulanId}"]`);
+                const komentarInput = document.querySelector(`.komentar-input[data-id="${pengumpulanId}"]`);
+
+                pengumpulan.nilai = parseInt(nilaiInput.value) || null;
+                pengumpulan.komentarGuru = komentarInput.value || null;
+
+                saveState();
+                showNotification(`Penilaian untuk ${pengumpulan.namaSiswa} telah disimpan.`);
+            };
+
+            const handleLihatTugas = (pengumpulanId) => {
+                 const pengumpulan = state.pengumpulan.find(p => p.id === pengumpulanId);
+                 const tugas = state.tugas.find(t => t.id === pengumpulan.tugasId);
+                 
+                 renderModal({
+                    title: `Detail Tugas: ${tugas.judul}`,
+                    body: `
+                        <p><span class="font-bold">Siswa:</span> ${pengumpulan.namaSiswa}</p>
+                        <p><span class="font-bold">File:</span> ${pengumpulan.file.name}</p>
+                        <p><span class="font-bold">Ukuran:</span> ${(pengumpulan.file.size / 1024).toFixed(2)} KB</p>
+                        <p class="mt-4 text-gray-600 text-sm">Ini adalah simulasi. Di aplikasi nyata, akan ada tautan untuk mengunduh file.</p>
+                    `,
+                    footer: `<button data-action="close-modal" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">Tutup</button>`
+                 });
+            };
+            
+            const handleTambahTugas = () => {
+                renderModal({
+                    title: 'Tambah Tugas Baru',
+                    body: `
+                        <div class="space-y-4">
+                            <div>
+                                <label for="tugas-judul" class="block mb-1 font-medium">Judul Tugas</label>
+                                <input type="text" id="tugas-judul" class="w-full p-2 border rounded-md" required>
+                            </div>
+                            <div>
+                                <label for="tugas-deskripsi" class="block mb-1 font-medium">Deskripsi</label>
+                                <textarea id="tugas-deskripsi" class="w-full p-2 border rounded-md" rows="4" required></textarea>
+                            </div>
+                            <div>
+                                <label for="tugas-deadline" class="block mb-1 font-medium">Deadline</label>
+                                <input type="datetime-local" id="tugas-deadline" class="w-full p-2 border rounded-md" required>
+                            </div>
+                             <p id="tugas-error" class="text-red-500 text-sm hidden"></p>
+                        </div>
+                    `,
+                    footer: `
+                        <button data-action="close-modal" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg mr-2 hover:bg-gray-400">Batal</button>
+                        <button data-action="simpan-tugas-baru" class="bg-violet-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-violet-700">Simpan Tugas</button>
+                    `
+                });
+                document.getElementById('tugas-deadline').value = toDateTimeLocal(new Date());
+            };
+            
+            const handleSimpanTugasBaru = () => {
+                const judul = document.getElementById('tugas-judul').value;
+                const deskripsi = document.getElementById('tugas-deskripsi').value;
+                const deadline = document.getElementById('tugas-deadline').value;
+                const errorEl = document.getElementById('tugas-error');
+                
+                if (!judul || !deskripsi || !deadline) {
+                    errorEl.textContent = 'Semua kolom wajib diisi.';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+                
+                const newTugas = {
+                    id: Date.now(),
+                    judul,
+                    deskripsi,
+                    deadline: new Date(deadline)
+                };
+                
+                state.tugas.push(newTugas);
+                saveState();
+                closeModal();
+                showNotification('Tugas baru berhasil ditambahkan.');
+                renderGuruDashboard();
+            };
+            
+            // --- User Management Handlers (Admin) ---
+            const showUserModal = (userId = null) => {
+                const form = document.getElementById('user-form');
+                form.reset();
+                document.getElementById('user-error').classList.add('hidden');
+                document.getElementById('user-id').value = '';
+                
+                const passwordInput = document.getElementById('user-password');
+                const passwordHint = document.getElementById('password-hint');
+
+                if (userId) {
+                    // Edit mode
+                    const allUsers = [...state.users.guru, ...state.users.siswa];
+                    const user = allUsers.find(u => u.id === userId);
+                    const userRole = state.users.guru.some(u => u.id === userId) ? 'guru' : 'siswa';
+
+                    document.getElementById('user-modal-title').textContent = 'Edit Pengguna';
+                    document.getElementById('user-id').value = user.id;
+                    document.getElementById('user-nama').value = user.nama;
+                    document.getElementById('user-username').value = user.username;
+                    document.getElementById('user-username').disabled = true; // Username cannot be changed
+                    document.getElementById('user-role').value = userRole;
+                    passwordInput.required = false;
+                    passwordHint.classList.remove('hidden');
+                } else {
+                    // Add mode
+                    document.getElementById('user-modal-title').textContent = 'Tambah Pengguna';
+                    document.getElementById('user-username').disabled = false;
+                    passwordInput.required = true;
+                    passwordHint.classList.add('hidden');
+                }
+                userModal.classList.add('flex');
+                userModal.classList.remove('hidden');
+            };
+
+            const closeUserModal = () => {
+                userModal.classList.add('hidden');
+                userModal.classList.remove('flex');
+            };
+
+            const handleUserFormSubmit = (event) => {
+                event.preventDefault();
+                const id = document.getElementById('user-id').value;
+                const nama = document.getElementById('user-nama').value;
+                const username = document.getElementById('user-username').value;
+                const password = document.getElementById('user-password').value;
+                const role = document.getElementById('user-role').value;
+                const errorEl = document.getElementById('user-error');
+                
+                if (id) {
+                    // Update user
+                    const userList = state.users[role];
+                    const user = userList.find(u => u.id === parseInt(id));
+                    if (user) {
+                        user.nama = nama;
+                        if (password) {
+                            user.password = password;
+                        }
+                    }
+                } else {
+                    // Add new user
+                    // Check if username already exists
+                    const allUsers = [...state.users.guru, ...state.users.siswa];
+                    if (allUsers.some(u => u.username === username)) {
+                        errorEl.textContent = 'Username sudah digunakan.';
+                        errorEl.classList.remove('hidden');
+                        return;
+                    }
+                    const newUser = {
+                        id: Date.now(),
+                        nama,
+                        username,
+                        password,
+                        status: 'approved'
+                    };
+                    state.users[role].push(newUser);
+                }
+                
+                saveState();
+                closeUserModal();
+                showNotification(id ? 'Pengguna berhasil diperbarui.' : 'Pengguna berhasil ditambahkan.');
+                renderSuperAdminDashboard();
+            };
+            
+            const handleDeleteUser = (userId) => {
+                let userRole = null;
+                let userIndex = -1;
+
+                if (state.users.guru.some(u => u.id === userId)) {
+                    userRole = 'guru';
+                    userIndex = state.users.guru.findIndex(u => u.id === userId);
+                } else {
+                    userRole = 'siswa';
+                    userIndex = state.users.siswa.findIndex(u => u.id === userId);
+                }
+                
+                if (confirm('Apakah Anda yakin ingin menghapus pengguna ini?')) {
+                     state.users[userRole].splice(userIndex, 1);
+                     saveState();
+                     showNotification('Pengguna berhasil dihapus.');
+                     renderSuperAdminDashboard();
+                }
+            };
+            
+
+            // =================================================================================
+            // MAIN APP LOGIC & INITIALIZATION
+            // =================================================================================
+
+            const main = () => {
+                if (state.currentUserRole === 'superadmin') {
+                    renderSuperAdminDashboard();
+                } else if (state.currentUserRole === 'guru') {
+                    renderGuruDashboard();
+                } else if (state.currentUserRole === 'siswa') {
+                    renderSiswaDashboard();
+                } else {
+                    renderLogin();
+                }
+            };
+
+            // Centralized Event Listener
+            document.body.addEventListener('click', (e) => {
+                const target = e.target.closest('[data-action], [id]');
+                if (!target) return;
+                
+                const action = target.dataset.action;
+                const id = target.dataset.id ? parseInt(target.dataset.id) : null;
+
+                switch (action || target.id) {
+                    case 'loginBtn':
+                        handleLogin();
+                        break;
+                    case 'logout':
+                        handleLogout();
+                        break;
+                    case 'kumpul-tugas':
+                        handleKumpulTugas(id);
+                        break;
+                    case 'submit-tugas':
+                        handleSubmitTugas(id);
+                        break;
+                    case 'simpan-penilaian':
+                        handleSimpanPenilaian(id);
+                        break;
+                    case 'lihat-tugas':
+                         handleLihatTugas(id);
+                        break;
+                    case 'tambah-tugas':
+                        handleTambahTugas();
+                        break;
+                    case 'simpan-tugas-baru':
+                        handleSimpanTugasBaru();
+                        break;
+                    case 'close-modal':
+                        closeModal();
+                        break;
+                    case 'add-user':
+                        showUserModal();
+                        break;
+                    case 'edit-user':
+                        showUserModal(id);
+                        break;
+                    case 'delete-user':
+                        handleDeleteUser(id);
+                        break;
+                    case 'close-user-modal':
+                        closeUserModal();
+                        break;
+                }
+            });
+            
+            document.getElementById('user-form').addEventListener('submit', handleUserFormSubmit);
+            
+            // Initial Load
+            loadState();
+            main();
+        });
+    </script>
+</body>
+</html>
